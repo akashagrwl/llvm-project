@@ -58,7 +58,6 @@
 #include "clang/Sema/SemaWasm.h"
 #include "clang/Sema/SemaX86.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -6869,9 +6868,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
                               : diag::warn_unhandled_ms_attribute_ignored)
           << AL.getAttrName() << AL.getRange();
     } else {
-      S.Diag(AL.getNormalizedRange().getBegin(),
-             diag::warn_unknown_attribute_ignored)
-          << "'" + AL.getNormalizedFullName() + "'" << AL.getNormalizedRange();
+      S.DiagnoseUnknownAttribute(AL);
     }
     return;
   }
@@ -7865,6 +7862,20 @@ void Sema::checkUnusedDeclAttributes(Declarator &D) {
   ::checkUnusedDeclAttributes(*this, D.getAttributes());
   for (unsigned i = 0, e = D.getNumTypeObjects(); i != e; ++i)
     ::checkUnusedDeclAttributes(*this, D.getTypeObject(i).getAttrs());
+}
+
+void Sema::DiagnoseUnknownAttribute(const ParsedAttr &AL) {
+  std::string NormalizedFullName = '\'' + AL.getNormalizedFullName() + '\'';
+  if (auto CorrectedFullName =
+          AL.getCorrectedFullName(Context.getTargetInfo(), getLangOpts())) {
+    Diag(AL.getNormalizedRange().getBegin(),
+         diag::warn_unknown_attribute_ignored_suggestion)
+        << NormalizedFullName << *CorrectedFullName << AL.getNormalizedRange();
+  } else {
+    Diag(AL.getNormalizedRange().getBegin(),
+         diag::warn_unknown_attribute_ignored)
+        << NormalizedFullName << AL.getNormalizedRange();
+  }
 }
 
 NamedDecl *Sema::DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
